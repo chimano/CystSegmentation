@@ -15,7 +15,7 @@ def project_into_columns(img):
     return mat*np.linalg.inv(mat.transpose()*mat)*mat
 
 
-if os.path.isdir('./output'):
+if not os.path.isdir('./output'):
     os.mkdir('output')
 
 for i in range(1, 10):
