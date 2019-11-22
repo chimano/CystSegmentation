@@ -7,7 +7,6 @@ import numpy as np
 import scipy.io
 from abel.tools.center import fit_gaussian
 from scipy.optimize import curve_fit
-from tvd import TotalVariationDenoising
 from skimage.transform import radon
 from skimage.restoration import denoise_tv_chambolle
 
