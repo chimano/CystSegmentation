@@ -1,16 +1,19 @@
 import os
 
 import cv2
-import matplotlib.pyplot as plt
-import mpmath
 import numpy as np
 import scipy.io
 from abel.tools.center import fit_gaussian
-from scipy.optimize import curve_fit
 from skimage.transform import radon
 from skimage.restoration import denoise_tv_chambolle
 import json
 import math
+
+
+def normalize_img(img):
+    img = img - np.average(img)
+    img = img/np.var(img)
+    return img
 
 
 def prepare_cakes(img, N=5, K=8):
@@ -108,11 +111,11 @@ def extract_data(path='./2015_BOE_Chiu', b_write_to_disk=True):
                 info_dict['j'] = j
                 info_dict['scaled_image'] = newimg
                 info_dict['roi'] = roi
-                info_dict['denoised'] = denoised
+                info_dict['denoised'] = normalize_img(denoised)
                 if b_write_to_disk:
                     output_to_disk(info_dict)
                 if np.count_nonzero(mf1) and np.count_nonzero(mf2):
-                    ground_truth = generate_ground_truth(mf1, mf2) * 255
+                    ground_truth = generate_ground_truth(mf1, mf2)
                     gt_roi = extract_roi(ground_truth, center)
                     info_dict['gt_roi'] = gt_roi
             except:
