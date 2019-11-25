@@ -1,6 +1,6 @@
 import os
 
-import cv2
+import cv2 as cv2
 import matplotlib.pyplot as plt
 import mpmath
 import numpy as np
@@ -64,10 +64,11 @@ for i in range(1, 11):
             cv2.imwrite(f'output/Subject_{i:02}_{j:02}.png', newimg)
             cv2.imwrite(f'output/Subject_{i:02}_{j:02}_roi.png', roi)
             cv2.imwrite(f'output/Subject_{i:02}_{j:02}_denoised.png', denoised)
+
             if np.count_nonzero(mf1) and np.count_nonzero(mf2):
                 ground_truth = generate_ground_truth(mf1, mf2) * 255
                 gt_roi = extract_roi(ground_truth, center)
-                cv2.imwrite(
-                    f'gt_output/Subject_{i:02}_{j:02}.png', gt_roi)
+                cv2.imwrite(f'gt_output/Subject_{i:02}_{j:02}.png', gt_roi)
+
         except:
             pass

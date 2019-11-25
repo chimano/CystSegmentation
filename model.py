@@ -1,5 +1,6 @@
 import keras
-from keras.layers import (Concatenate, Conv2D, Conv3D, Input, MaxPooling2D,
+from keras.layers 
+import (Concatenate, Conv2D, Conv3D, Input, MaxPooling2D,
                           MaxPooling3D, Reshape)
 from keras.models import Model
 from keras.optimizers import SGD
