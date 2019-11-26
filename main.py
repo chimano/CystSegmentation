@@ -1,55 +1,12 @@
+import json
 import os
 
 import cv2
 import numpy as np
 import scipy.io
-from abel.tools.center import fit_gaussian
-from skimage.transform import radon
-from skimage.restoration import denoise_tv_chambolle
-import json
-import math
 
-
-def normalize_img(img):
-    img = img - np.average(img)
-    img = img/np.var(img)
-    return img
-
-
-def prepare_cakes(img, N=5, K=8):
-    rows, cols = img.shape
-    cakes = np.zeros((rows, cols, K + 1))
-    for i in np.arange(0, 180, 180/K):
-        slices = np.zeros((rows, cols, 2*N+1))
-        for j in range(-N, N+1):
-            translation = np.float32(
-                [[1, 0, j*math.cos(math.radians(i))], [0, 1, j*math.sin(math.radians(i))]])
-            translated = cv2.warpAffine(img.astype(
-                np.float32), translation, (cols, rows))
-            slices[:, :, j+N] = translated
-        cake = np.zeros((rows, cols))
-        for j in range(len(cake)):
-            for k in range(len(cake[j])):
-                cake[j, k] = min(slices[j, k, :])
-        index = i / 180 * K
-        cakes[:, :, int(index)] = cake
-    cakes[:, :, K] = img
-    return cakes
-
-
-def project_into_columns(img):
-    # Need to understand how the paper did this part
-    proj = radon(img, theta=[90], circle=True)[:, 0]
-    return proj
-
-
-def extract_roi(img, xc, width=250):
-    if width//2 + xc > img.shape[1]:
-        xc = img.shape[1] - width//2
-    if xc - width//2 < 0:
-        xc = width//2
-
-    return img[:, xc - width//2: xc + width//2]
+from preprocessor import (denoise_image, extract_roi, find_image_center,
+                          normalize_img, scale_image)
 
 
 def generate_ground_truth(mf1, mf2):
@@ -73,13 +30,13 @@ def output_to_disk(info):
     try:
         if np.count_nonzero(info.get('gt_roi', 0)):
             cv2.imwrite(
-                f'gt_output/Subject_{i:02}_{j:02}.png', info['gt_roi'].tolist())
+                f'gt_output/Subject_{i:02}_{j:02}.png', info['gt_roi'])
         cv2.imwrite(
-            f'output/Subject_{i:02}_{j:02}.png', info['scaled_image'].tolist())
+            f'output/Subject_{i:02}_{j:02}.png', info['scaled_image'])
         cv2.imwrite(
-            f'output/Subject_{i:02}_{j:02}_roi.png', info['roi'].tolist())
+            f'output/Subject_{i:02}_{j:02}_roi.png', info['roi'])
         cv2.imwrite(
-            f'output/Subject_{i:02}_{j:02}_denoised.png', info['denoised'].tolist())
+            f'output/Subject_{i:02}_{j:02}_denoised.png', info['denoised'])
     except:
         pass
 
@@ -94,30 +51,28 @@ def extract_data(path='./2015_BOE_Chiu', b_write_to_disk=True):
         grader2 = mat['manualFluid1']
         for j in range(len(images[0][0])):
             info_dict = {}
-            mf1 = np.nan_to_num(cv2.resize(
+            mf1 = np.nan_to_num(scale_image(
                 grader1[:, :, j], (512, 256)), nan=0.0)
-            mf2 = np.nan_to_num(cv2.resize(
+            mf2 = np.nan_to_num(scale_image(
                 grader2[:, :, j], (512, 256)), nan=0.0)
 
-            newimg = cv2.resize(images[:, :, j], (512, 256))
-            projection = project_into_columns(newimg)
+            newimg = scale_image(images[:, :, j])
             try:
 
-                center = int(fit_gaussian(projection)[1])
+                center = find_image_center(newimg)
                 roi = extract_roi(newimg, center)
-                denoised = denoise_tv_chambolle(
-                    roi, weight=0.08) * 255
+                denoised = denoise_image(roi)
                 info_dict['i'] = i
                 info_dict['j'] = j
                 info_dict['scaled_image'] = newimg
                 info_dict['roi'] = roi
                 info_dict['denoised'] = normalize_img(denoised)
-                if b_write_to_disk:
-                    output_to_disk(info_dict)
                 if np.count_nonzero(mf1) and np.count_nonzero(mf2):
                     ground_truth = generate_ground_truth(mf1, mf2)
                     gt_roi = extract_roi(ground_truth, center)
                     info_dict['gt_roi'] = gt_roi
+                if b_write_to_disk:
+                    output_to_disk(info_dict)
             except:
                 pass
             subject_info.append(info_dict)
@@ -138,12 +93,12 @@ def prepare_training_data(info):
                         'x': [cake_stack.tolist(), cake.tolist()],
                         'y': cv2.resize(info[i][j]['gt_roi'], (125, 128)).tolist()
                     }
-                    with open(f'./train/s_{i:02}-{j:02}', 'w') as f:
+                    with open(f'./train/s_{i+1:02}-{j:02}', 'w') as f:
                         json.dump(train_info, f)
                 except:
                     continue
 
 
 if __name__ == "__main__":
-    info = extract_data(b_write_to_disk=False)
+    info = extract_data()
     prepare_training_data(info)

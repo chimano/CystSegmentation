@@ -4,3 +4,4 @@ venv/
 .vscode/
 train/
 models/
+__pycache__/
