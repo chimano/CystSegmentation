@@ -15,15 +15,16 @@ from preprocessor import prepare_cakes
 
 
 def prepare_X(imgs):
-    if len(imgs) != 3:
+    if len(imgs[0]) != 3 or len(imgs[1]) != 3:
         raise Exception
-    cake_stack = np.stack([prepare_cakes(img)
-                           for img in imgs], axis=2)
-    cake = prepare_cakes(imgs[0])
-    X_1 = np.empty((1, 256, 250, 3, 9))
-    X_1[0, :, :, :, :] = cake_stack
-    X_2 = np.empty((1, 256, 250, 9))
-    X_2[0, :, :, :] = cake
+    cake_stack = [np.stack([prepare_cakes(img)
+                           for img in imgs[j]], axis=2) for j in range(len(imgs))]
+    cake = [prepare_cakes(imgs[j][1]) for j in range(len(imgs))]
+    X_1 = np.empty((len(imgs), 256, 250, 3, 9))
+    X_2 = np.empty((len(imgs), 256, 250, 9))
+    for i in range(len(imgs)):
+        X_1[i, :, :, :, :] = cake_stack[i]
+        X_2[i, :, :, :] = cake[i]
     return [X_1, X_2]
 
 
@@ -82,9 +83,15 @@ class DataGenerator(keras.utils.Sequence):
 class ModelSaver(Callback):
     def on_epoch_end(self, epoch, logs={}):
         # or save after some epoch, each k-th epoch etc.
-        if epoch == 1 or epoch % 5 == 0:
-            self.model.save(f"./models/model_{epoch:05}.hd5")
+        if epoch == 1 or epoch % 1 == 0:
+            self.model.save(f'./models_v2/model_{epoch:04}.hd5')
 
+class MetricLogger(Callback):
+    def on_epoch_end(self, batch, logs={}):
+        with open('losses.csv', 'a') as f:
+            f.write(f',{logs.get("loss")}')
+        with open('accuracy.csv', 'a') as f:
+            f.write(f',{logs.get("acc")}')
 
 class CystCNN():
     def __init__(self, weights_file=None):
@@ -114,24 +121,26 @@ class CystCNN():
 
         optimizer = SGD(learning_rate=0.001, momentum=0.75, nesterov=True)
         self.model = Model(inputs=[input_1, input_2], output=output)
-        self.model.compile(optimizer, loss='binary_crossentropy')
+        self.model.compile(loss='binary_crossentropy', optimizer=optimizer, metrics=['accuracy'])
         self.model.summary()
 
     def train(self, epochs, batch_size, train_dir='./train'):
         fileNames = [f for f in listdir(
             train_dir) if isfile(join(train_dir, f))]
+        np.random.shuffle(fileNames)
         training_data = fileNames[:len(fileNames)-20]
         validation_data = fileNames[len(fileNames)-20:]
 
         training_generator = DataGenerator(training_data, batch_size=8)
         validation_generator = DataGenerator(validation_data, batch_size=8)
         saver = ModelSaver()
+        loss_saver = MetricLogger()
         self.model.fit_generator(generator=training_generator,
                                  validation_data=validation_generator,
-                                 callbacks=[saver],
+                                 callbacks=[saver, loss_saver],
                                  epochs=epochs,
-                                 verbose=batch_size)
-        self.model.save(f"./my_model.hd5")
+                                 verbose=1)
+        self.model.save('./my_model_adam.hd5')
 
     def predict(self, X):
         return self.model.predict(X)
@@ -143,4 +152,4 @@ class CystCNN():
 #           batch_size=batch_size, epoch=epoch)
 if __name__ == "__main__":
     model = CystCNN()
-    model.train(1500, 8)
+    model.train(200, 24)

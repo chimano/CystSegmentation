@@ -60,4 +60,4 @@ def denoise_image(img):
 
 
 def scale_image(img):
-    return cv2.resize(img, (512, 256))
+    return cv2.resize(img, (500, 256))
