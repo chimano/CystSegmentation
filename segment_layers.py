@@ -16,6 +16,7 @@ def pad_image(img):
 def vertical_gradient_inverse(img):
     image_size = np.shape(img)
     gradient_image = np.full(image_size, np.nan)
+    new_img = convert_top_rows(img)
     for i in range (0, image_size(1)):
         gradient_image[:,i] = -1*np.gradient(img[:,i],2)
     return gradient_image, (gradient_image*-1 + 1)
@@ -33,41 +34,193 @@ def sub2ind(array_shape, rows, cols):
     ind[ind >= array_shape[0]*array_shape[1]] = -1
     return ind
 
-def prepare_graph(img, gradient_img): 
-    min_weight = 1*math.exp(-5)
-    img_shape = np.shape(img)
-    number_elements = np.prod(img_shape)
-    adjMW = np.full((number_elements, 8), np.nan)
-    adjMmW = np.full((number_elements, 8), np.nan)
-    adjMX = np.full((number_elements, 8), np.nan)
-    adjMY = np.full((number_elements, 8), np.nan)
-    neighbor_iterator = np.array([[1, 1, 1, 0, 0, -1, -1, -1],
-                         [1, 0, -1, 1, -1, 1, 0, -1]])
-    
-    shape_adjMW = np.shape(adjMW)
-    ind = 1
-    indR = 0
-    while (ind != np.prod(shape_adjMW)): 
-        i, j = ind2sub(shape_adjMW, ind)
-        iX, iY = ind2sub(img_shape, i(0))
-        jX = iX + neighbor_iterator[0, j]
-        jY = iY + neighbor_iterator[1, j]
-        if (jX > 1 & jX < img_shape(0) & jY > 1 & jY < img_shape(1)):
-            if (jY == 1 | jY == img_shape(1)):
-                adjMW[i,j] = min_weight
-                adjMmW[i,j] = min_weight
-            else: 
-                adjMW[i,j] = 2 - gradient_img[iX, iY] - gradient_img[jX, jY] + min_weight
-                adjMmW[i,j] = min_weight
-            
-            adjMX[i, j] = sub2ind(img_shape, iX, iY)
-            adjMY[i, j] = sub2ind(img_shape, jX, jY)
-        ind = ind + 1
+def convert_top_rows(img):
+    shape = np.shape(img)
+    new_image = img
+    width = shape[1]
+    for i in range (0, shape[0]):
+        average = sum(img[i,:])/width
+        if (average == 255):
+            new_image[i,:] = np.zeros(width)
+    return new_image
 
-        # Add progress here?
-    keep_ind = not np.isnan(adjMW[:]) and not np.isnan(adjMY[:]) and not np.isnan(adjMY[:]) and not np.isnan(adjMmW[:])
-    adjMW = adjMW[keep_ind]
-    adjMmW = adjMmW[keep_ind]
-    adjMX = adjMX[keep_ind]
-    adjMY = adjMY[keep_ind]
+def simple_segmentation(img): 
+    img_shape = np.shape(img)
+    mask = np.zeros(img_shape)
+    top_indices = np.zeros(img_shape[1])
+    bottom_indices = np.zeros(img_shape[1])
+    new_image = convert_top_rows(img)
+    for j in range(0, img_shape[1]):
+        col = new_image[:,j]
+        top_indices[j] = int(from_top(col))
+        bottom_indices[j] = int(from_bottom(col))
+        # print("col: ", j, ", bottom_index: ", bottom_indices[j], ", top_index: ", top_indices[j])
+        
+    new_top_indices, new_bottom_indices = smooth(top_indices, bottom_indices)
+    for j in range(0, img_shape[1]):
+        mask[int(new_top_indices[j]):int(new_bottom_indices[j]), j] = 1
+    
+    return mask
+
+def smooth(top_indices, bottom_indices):
+    length = np.shape(top_indices)[0]
+    new_top_indices = np.zeros(length, dtype=np.uint8)
+    new_bottom_indices = np.zeros(length, dtype=np.uint8)
+    
+    top_average = sum(top_indices[:])/length
+    bottom_average = sum(bottom_indices[:])/length
+
+    for i in range (0, length):
+        if abs(top_indices[i] - top_average) > 30:
+            top_indices[i] = top_average
+        if abs(bottom_indices[i] - bottom_average) > 40:
+            bottom_indices[i] = bottom_average
+
+    new_top_indices[0] = top_indices[0]
+    new_top_indices[1] = top_indices[1]
+    new_top_indices[length-2] = top_indices[length-2]
+    new_top_indices[length-1] = top_indices[length-1]
+
+    new_bottom_indices[0] = bottom_indices[0]
+    new_bottom_indices[1] = bottom_indices[0]
+    new_bottom_indices[length-2] = bottom_indices[length-2]
+    new_bottom_indices[length-1] = bottom_indices[length-1]
+
+    count = 0
+    while count < 5:
+        for i in range (2, length - 2):
+            start = i - 2
+            end = i + 2
+            if (count == 0):
+                new_top_indices[i] = int(sum(top_indices[start:end])/4)
+            new_bottom_indices[i] = int(sum(bottom_indices[start:end])/4)
+            print ("top: ", new_top_indices[i], ", bottom: ",    new_bottom_indices[i])
+        bottom_indices = new_bottom_indices
+        count+= 1
+    return top_indices, bottom_indices
+
+def from_top(column):
+    length = np.shape(column)[0]
+    index = 0
+    current_average = np.sum(column)/length
+    prev_average = current_average - 5
+    first_catch = 0
+    count = 0
+    while (count < 4 and index <= length):
+        index+= 6
+        length-= 6
+        prev_average = current_average
+        current_average = np.sum(column[index:])/length
+        difference = current_average - prev_average
+        if (current_average < prev_average):
+            if (count == 0):
+                first_catch = index
+            count+=1
+        else:
+            count = 0
+    
+    index = first_catch - 6
+    prev_average = 0
+    current_average = 0
+    length+= 6 * count 
+    count = 0
+    while (count < 3 and index <= length):
+        index+= 1
+        length-= 1
+        prev_average = current_average
+        current_average = np.sum(column[index:])/length
+        difference = current_average - prev_average
+        if (current_average < prev_average):
+            if (count == 0):
+                first_catch = index
+            count+=1
+        else:
+            count = 0
+
+    return first_catch
+
+def from_bottom(column):
+    length = np.shape(column)[0]
+    index = length-1
+    current_average = np.sum(column)/length
+    prev_average = current_average - 15
+    first_catch = 0
+    count = 0
+    while (count < 2 and index >= 0):
+        index-= 5
+        length-= 5
+        prev_average = current_average
+        current_average = np.sum(column[:index])/length
+        difference = current_average - prev_average
+        if (current_average < prev_average):
+            if (count == 0):
+                first_catch = index
+            count+=1
+        else:
+            count = 0
+
+    index = first_catch + 5
+    prev_average = 0
+    current_average = 0
+    length+= 5 * count 
+    count = 0
+    while (count < 3 and index >= 0):
+        index-= 1
+        length-= 1
+        prev_average = current_average
+        current_average = np.sum(column[:index])/length
+        difference = current_average - prev_average
+        if (current_average < prev_average):
+            if (count == 0):
+                first_catch = index
+            count+=1
+        else:
+            count = 0
+    
+    first_catch
+    return index
+
+
+# def prepare_graph(img, gradient_img): 
+#     min_weight = 1*math.exp(-5)
+#     img_shape = np.shape(img)
+#     number_elements = np.prod(img_shape)
+#     adjMW = np.full((number_elements, 8), np.nan)
+#     adjMmW = np.full((number_elements, 8), np.nan)
+#     adjMX = np.full((number_elements, 8), np.nan)
+#     adjMY = np.full((number_elements, 8), np.nan)
+#     neighbor_iterator = np.array([[1, 1, 1, 0, 0, -1, -1, -1],
+#                          [1, 0, -1, 1, -1, 1, 0, -1]])
+    
+#     shape_adjMW = np.shape(adjMW)
+#     ind = 1
+#     indR = 0
+#     while (ind != np.prod(shape_adjMW)): 
+#         i, j = ind2sub(shape_adjMW, ind)
+#         iX, iY = ind2sub(img_shape, i(0))
+#         jX = iX + neighbor_iterator[0, j]
+#         jY = iY + neighbor_iterator[1, j]
+#         if (jX > 1 & jX < img_shape(0) & jY > 1 & jY < img_shape(1)):
+#             if (jY == 1 | jY == img_shape(1)):
+#                 adjMW[i,j] = min_weight
+#                 adjMmW[i,j] = min_weight
+#             else: 
+#                 adjMW[i,j] = 2 - gradient_img[iX, iY] - gradient_img[jX, jY] + min_weight
+#                 adjMmW[i,j] = min_weight
+            
+#             adjMX[i, j] = sub2ind(img_shape, iX, iY)
+#             adjMY[i, j] = sub2ind(img_shape, jX, jY)
+#         ind = ind + 1
+
+#         # Add progress here?
+#     keep_ind = not np.isnan(adjMW[:]) and not np.isnan(adjMY[:]) and not np.isnan(adjMY[:]) and not np.isnan(adjMmW[:])
+#     adjMW = adjMW[keep_ind]
+#     adjMmW = adjMmW[keep_ind]
+#     adjMX = adjMX[keep_ind]
+#     adjMY = adjMY[keep_ind]
+
+#     # coo_matrix((data, (i, j)), [shape=(M, N)])
+
+#     adjMatrixW = coo_matrix((adjMW[:], (adjMX[:], adjMY[:])), shape=(img_shape[0], img_shape[1]).toarray()
+#     adjMatrixMW = coo_matrix((adjMmW[:], (adjMX[:], adjMY[:])), shape=(img_shape[0], img_shape[1]).toarray()
 
