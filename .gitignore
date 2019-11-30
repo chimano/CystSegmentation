@@ -5,3 +5,5 @@ venv/
 train/
 models/
 __pycache__/
+*.csv
+models_v2/

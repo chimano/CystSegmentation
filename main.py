@@ -28,9 +28,9 @@ def output_to_disk(info):
     i = info['i']
     j = info['j']
     try:
-        if np.count_nonzero(info.get('gt_roi', 0)):
+        if np.count_nonzero(info.get('gt', 0)):
             cv2.imwrite(
-                f'gt_output/Subject_{i:02}_{j:02}.png', info['gt_roi']*255)
+                f'gt_output/Subject_{i:02}_{j:02}.png', info['gt']*255)
         cv2.imwrite(
             f'output/Subject_{i:02}_{j:02}.png', info['scaled_image'])
         cv2.imwrite(
@@ -57,15 +57,15 @@ def extract_data(path='./2015_BOE_Chiu', b_write_to_disk=False):
             newimg = scale_image(images[:, :, j])
             try:
 
-                center = find_image_center(newimg)
                 denoised = denoise_image(newimg)
                 info_dict['i'] = i
                 info_dict['j'] = j
+                info_dict['img'] = images[:, :, j]
                 info_dict['scaled_image'] = newimg
                 info_dict['denoised'] = normalize_img(denoised)
                 if np.count_nonzero(mf1) and np.count_nonzero(mf2):
                     ground_truth = generate_ground_truth(mf1, mf2)
-                    info_dict['gt_roi'] = ground_truth
+                    info_dict['gt'] = ground_truth
                 if b_write_to_disk:
                     output_to_disk(info_dict)
             except:
@@ -79,7 +79,7 @@ def extract_data(path='./2015_BOE_Chiu', b_write_to_disk=False):
 def prepare_training_data(info):
     for i in range(len(info)):
         for j in range(len(info[i][1:len(info[i])]) - 1):
-            if 'gt_roi' in info[i][j]:
+            if 'gt' in info[i][j]:
                 for l in range(3):
                     try:
                         cake_stack = np.stack([prepare_cakes(info[i][k]['denoised'][:,l * 125:l*125 + 250])
@@ -87,7 +87,7 @@ def prepare_training_data(info):
                         cake = prepare_cakes(info[i][j]['denoised'][:,l * 125:l*125 + 250])
                         train_info = {
                             'x': [cake_stack.tolist(), cake.tolist()],
-                            'y': cv2.resize(info[i][j]['gt_roi'][:,l * 125:l*125 + 250], (125, 128)).tolist()
+                            'y': cv2.resize(info[i][j]['gt'][:,l * 125:l*125 + 250], (125, 128)).tolist()
                         }
                         with open(f'./train/s_{i+1:02}-{j:02}-{l}', 'w') as f:
                             json.dump(train_info, f)
@@ -96,5 +96,5 @@ def prepare_training_data(info):
 
 
 if __name__ == "__main__":
-    info = extract_data()
+    info = extract_data(b_write_to_disk=True)
     prepare_training_data(info)

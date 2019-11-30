@@ -12,6 +12,7 @@ from preprocessor import (denoise_image, extract_roi, find_image_center,
                           normalize_img, scale_image)
 from sklearn.cluster import KMeans
 
+
 def revert_crop(img, center, dest=(256, 512)):
     reverted = np.zeros((dest))
     reverted[:, center - img.shape[1]//2: center + img.shape[1]//2] = img
@@ -25,7 +26,8 @@ def prepare_input(n_subject, n_slice):
     scaled_imgs = [scale_image(imgs[:, :, i]) for i in range(imgs.shape[2])]
     # center = find_image_center(scaled_imgs[1])
     # imgs_roi = [[extract_roi(img[:,i * 250:i*250 + 250], center) for img in scaled_imgs] for i in range(2)]
-    denoised_imgs = [[normalize_img(denoise_image(img[:,i * 125:i*125 + 250])) for img in scaled_imgs] for i in range(3)]
+    denoised_imgs = [[normalize_img(denoise_image(
+        img[:, i * 125:i*125 + 250])) for img in scaled_imgs] for i in range(3)]
 
     result['X'] = prepare_X(denoised_imgs)
     result['scaled'] = scaled_imgs[1]
@@ -34,39 +36,50 @@ def prepare_input(n_subject, n_slice):
 
 def apply_k_means(img, bin_map):
     masked = img * bin_map
-    mask_1d = masked.reshape((masked.shape[0] * masked.shape[1],1))
+    mask_1d = masked.reshape((masked.shape[0] * masked.shape[1], 1))
     cluster = KMeans(n_clusters=3).fit(mask_1d)
-    median_index = np.where(cluster.cluster_centers_ == np.median(cluster.cluster_centers_))[0][0]
+    median_index = np.where(cluster.cluster_centers_ ==
+                            np.median(cluster.cluster_centers_))[0][0]
     for i in range(len(bin_map)):
         for j in range(len(bin_map[i])):
-            bin_map[i][j] = 0 if cluster.predict([[img[i][j]]])[0] != median_index else bin_map[i][j]
-    
+            bin_map[i][j] = 0 if cluster.predict(
+                [[img[i][j]]])[0] != median_index else bin_map[i][j]
+
     return bin_map
 
 
-if __name__ == "__main__":
-    model = CystCNN('./my_model.hd5')
-    model_input = prepare_input(2, 50)
-    model_output = model.predict(model_input['X'])
-
-    model_output[model_output >= 0.2] = 1.0
-    model_output[model_output < 0.2] = 0.0
-
+def post_process(model_input, model_output):
     center_output = model_output[1]
-    model_output = np.concatenate((model_output[0],model_output[2]), 1)
+    model_output = np.concatenate((model_output[0], model_output[2]), 1)
 
     center_output = cv2.resize(center_output, (250, 256))
     model_output = cv2.resize(model_output, (500, 256))
-    model_output[:,125:375] = center_output
+    model_output[:, 125:375] = center_output
+    model_output = (model_output - model_output.min()) / \
+        (model_output.max() - model_output.min())
     img = model_input['scaled']
 
-    model_output[model_output >= 1] = 1.0
-    model_output = apply_k_means(img, model_output)
+    model_output[model_output >= 0.85] = 1.0
+    model_output[model_output < 0.85] = 0.0
+    # mask = model_output
+    # mask[model_output >= 0.65] = 1.0
+    # mask[model_output < 0.65] = 0.0
+    model_output = apply_k_means(denoise_image(img), model_output)
 
-    model_output = np.array(model_output, dtype=np.uint8) * 255
+    model_output = np.array(model_output * 255, dtype=np.uint8)
+    display_model_output = np.array(model_output, dtype=np.uint8)
     img = np.stack((model_input['scaled'],)*3, axis=-1)
-    # img = cv2.imread('./gt_output/Subject_05_23.png')
-    model_output = cv2.applyColorMap(model_output, cv2.COLORMAP_JET)
-    fin = cv2.addWeighted(model_output, 0.6, img, 0.4, 0)
+    # img = cv2.imread('./gt_output/Subject_01_10.png')
+    display_model_output = cv2.applyColorMap(
+        display_model_output, cv2.COLORMAP_JET)
+    fin = cv2.addWeighted(display_model_output, 0.6, img, 0.4, 0)
+    return (model_output, fin)
+
+
+if __name__ == "__main__":
+    model = CystCNN('./models_v2\model_0025.hd5')
+    model_input = prepare_input(1, 25)
+    model_output = model.predict(model_input['X'])
+    _, fin = post_process(model_input, model_output)
     plt.imshow(fin)
     plt.show()

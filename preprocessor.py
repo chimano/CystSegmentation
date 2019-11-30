@@ -56,7 +56,7 @@ def find_image_center(img):
 
 
 def denoise_image(img):
-    return denoise_tv_chambolle(img, weight=0.08) * 255
+    return denoise_tv_chambolle(img, weight=0.06) * 255
 
 
 def scale_image(img):
