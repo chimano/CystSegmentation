@@ -7,7 +7,7 @@ import keras
 import numpy as np
 from keras.callbacks import Callback
 from keras.layers import (Concatenate, Conv2D, Conv3D, Input, MaxPooling2D,
-                          MaxPooling3D, Reshape, Dense)
+                          MaxPooling3D, Reshape)
 import tensorflow as tf
 from keras.models import Model
 from keras.optimizers import SGD

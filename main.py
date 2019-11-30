@@ -1,7 +1,13 @@
 import json
 import os
 
+<<<<<<< HEAD
+import cv2 as cv2
+import matplotlib.pyplot as plt
+import mpmath
+=======
 import cv2
+>>>>>>> origin/master
 import numpy as np
 import scipy.io
 
@@ -95,6 +101,39 @@ def prepare_training_data(info):
                         continue
 
 
+<<<<<<< HEAD
+for i in range(1, 11):
+    mat = scipy.io.loadmat(f'2015_BOE_Chiu/Subject_{i:02}.mat')
+    images = mat['images']
+    grader1 = mat['manualFluid1']
+    grader2 = mat['manualFluid1']
+    for j in range(len(images[0][0])):
+        mf1 = np.nan_to_num(cv2.resize(
+            grader1[:, :, j], (512, 256)), nan=0.0)
+        mf2 = np.nan_to_num(cv2.resize(
+            grader1[:, :, j], (512, 256)), nan=0.0)
+
+        newimg = cv2.resize(images[:, :, j], (512, 256))
+        projection = project_into_columns(newimg)
+        try:
+
+            center = int(fit_gaussian(projection)[1])
+            roi = extract_roi(newimg, center)
+            denoised = denoise_tv_chambolle(
+                roi, weight=0.08) * 255
+            cv2.imwrite(f'output/Subject_{i:02}_{j:02}.png', newimg)
+            cv2.imwrite(f'output/Subject_{i:02}_{j:02}_roi.png', roi)
+            cv2.imwrite(f'output/Subject_{i:02}_{j:02}_denoised.png', denoised)
+
+            if np.count_nonzero(mf1) and np.count_nonzero(mf2):
+                ground_truth = generate_ground_truth(mf1, mf2) * 255
+                gt_roi = extract_roi(ground_truth, center)
+                cv2.imwrite(f'gt_output/Subject_{i:02}_{j:02}.png', gt_roi)
+
+        except:
+            pass
+=======
 if __name__ == "__main__":
     info = extract_data(b_write_to_disk=True)
     prepare_training_data(info)
+>>>>>>> origin/master

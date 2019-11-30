@@ -2,6 +2,7 @@
 *.png
 venv/
 .vscode/
+.DS_Store
 train/
 models/
 __pycache__/
