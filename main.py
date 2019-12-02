@@ -1,18 +1,12 @@
 import json
 import os
 
-<<<<<<< HEAD
-import cv2 as cv2
-import matplotlib.pyplot as plt
-import mpmath
-=======
 import cv2
->>>>>>> origin/master
 import numpy as np
 import scipy.io
 
 from preprocessor import (denoise_image, extract_roi, find_image_center,
-                          normalize_img, scale_image, prepare_cakes)
+                          normalize_img, scale_image, prepare_cakes, get_mask)
 
 
 def generate_ground_truth(mf1, mf2):
@@ -63,12 +57,15 @@ def extract_data(path='./2015_BOE_Chiu', b_write_to_disk=False):
             newimg = scale_image(images[:, :, j])
             try:
 
-                denoised = denoise_image(newimg)
+                denoised = denoise_image(newimg) * get_mask(i, j)
+                if j == 32:
+                    a = 1
                 info_dict['i'] = i
                 info_dict['j'] = j
                 info_dict['img'] = images[:, :, j]
                 info_dict['scaled_image'] = newimg
-                info_dict['denoised'] = normalize_img(denoised)
+                info_dict['denoised_normalized'] = normalize_img(denoised)
+                info_dict['denoised'] = denoised
                 if np.count_nonzero(mf1) and np.count_nonzero(mf2):
                     ground_truth = generate_ground_truth(mf1, mf2)
                     info_dict['gt'] = ground_truth
@@ -87,13 +84,15 @@ def prepare_training_data(info):
         for j in range(len(info[i][1:len(info[i])]) - 1):
             if 'gt' in info[i][j]:
                 for l in range(3):
+                    layer_mask = get_mask(i+1, j)[:, l * 125:l*125 + 250]
                     try:
-                        cake_stack = np.stack([prepare_cakes(info[i][k]['denoised'][:,l * 125:l*125 + 250])
-                                            for k in range(j-1, j+2)], axis=2)
-                        cake = prepare_cakes(info[i][j]['denoised'][:,l * 125:l*125 + 250])
+                        cake_stack = np.stack([prepare_cakes(info[i][k]['denoised_normalized'][:, l * 125:l*125 + 250] * layer_mask)
+                                               for k in range(j-1, j+2)], axis=2)
+                        cake = prepare_cakes(
+                            info[i][j]['denoised_normalized'][:, l * 125:l*125 + 250] * layer_mask)
                         train_info = {
                             'x': [cake_stack.tolist(), cake.tolist()],
-                            'y': cv2.resize(info[i][j]['gt'][:,l * 125:l*125 + 250], (125, 128)).tolist()
+                            'y': cv2.resize(info[i][j]['gt'][:, l * 125:l*125 + 250], (125, 128)).tolist()
                         }
                         with open(f'./train/s_{i+1:02}-{j:02}-{l}', 'w') as f:
                             json.dump(train_info, f)
@@ -101,39 +100,6 @@ def prepare_training_data(info):
                         continue
 
 
-<<<<<<< HEAD
-for i in range(1, 11):
-    mat = scipy.io.loadmat(f'2015_BOE_Chiu/Subject_{i:02}.mat')
-    images = mat['images']
-    grader1 = mat['manualFluid1']
-    grader2 = mat['manualFluid1']
-    for j in range(len(images[0][0])):
-        mf1 = np.nan_to_num(cv2.resize(
-            grader1[:, :, j], (512, 256)), nan=0.0)
-        mf2 = np.nan_to_num(cv2.resize(
-            grader1[:, :, j], (512, 256)), nan=0.0)
-
-        newimg = cv2.resize(images[:, :, j], (512, 256))
-        projection = project_into_columns(newimg)
-        try:
-
-            center = int(fit_gaussian(projection)[1])
-            roi = extract_roi(newimg, center)
-            denoised = denoise_tv_chambolle(
-                roi, weight=0.08) * 255
-            cv2.imwrite(f'output/Subject_{i:02}_{j:02}.png', newimg)
-            cv2.imwrite(f'output/Subject_{i:02}_{j:02}_roi.png', roi)
-            cv2.imwrite(f'output/Subject_{i:02}_{j:02}_denoised.png', denoised)
-
-            if np.count_nonzero(mf1) and np.count_nonzero(mf2):
-                ground_truth = generate_ground_truth(mf1, mf2) * 255
-                gt_roi = extract_roi(ground_truth, center)
-                cv2.imwrite(f'gt_output/Subject_{i:02}_{j:02}.png', gt_roi)
-
-        except:
-            pass
-=======
 if __name__ == "__main__":
-    info = extract_data(b_write_to_disk=True)
+    info = extract_data(b_write_to_disk=False)
     prepare_training_data(info)
->>>>>>> origin/master

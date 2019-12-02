@@ -8,6 +8,13 @@ from skimage.restoration import denoise_tv_chambolle
 from skimage.transform import radon
 
 
+def get_mask(subject, n_slice):
+    mask = cv2.imread(
+        f'./masks/mask_{subject}_{n_slice}.png', cv2.IMREAD_GRAYSCALE)
+    resized = cv2.resize(mask, (500, 256))
+    return resized // 255
+
+
 def extract_roi(img, xc, width=250):
     if width//2 + xc > img.shape[1]:
         xc = img.shape[1] - width//2
@@ -56,7 +63,8 @@ def find_image_center(img):
 
 
 def denoise_image(img):
-    return denoise_tv_chambolle(img, weight=0.06) * 255
+    denoised = denoise_tv_chambolle(img, weight=0.1)
+    return np.array(denoised * 255, dtype=np.uint8)
 
 
 def scale_image(img):

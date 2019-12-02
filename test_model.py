@@ -2,7 +2,8 @@ from main import extract_data
 from model import CystCNN
 from predictor import prepare_input, post_process
 import numpy as np
-load_from = 25
+import cv2
+load_from = 31
 model_file = f'models_v2/model_{load_from:04}.hd5'
 # model_file = './my_model.hd5'
 model = CystCNN(model_file)
