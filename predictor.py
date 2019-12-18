@@ -11,7 +11,6 @@ from model import CystCNN, prepare_X
 from preprocessor import (denoise_image, extract_roi, find_image_center,
                           normalize_img, scale_image, get_mask)
 from sklearn.cluster import KMeans
-from segment_layers import simple_segmentation
 
 
 def revert_crop(img, center, dest=(256, 512)):
@@ -51,7 +50,7 @@ def apply_k_means(img, bin_map):
     return kmeans_result * bin_map
 
 
-def post_process(model_input, model_output):
+def post_process(model_input, model_output, b_apply_k_means=True):
     center_output = model_output[1]
     model_output = np.concatenate((model_output[0], model_output[2]), 1)
 
@@ -63,17 +62,16 @@ def post_process(model_input, model_output):
     img = model_input['scaled']
     mask = get_mask(model_input['subject'], model_input['n_slice'])
 
-    model_output[model_output >= 0.76] = 1.0
-    model_output[model_output < 0.76] = 0.0
-    # mask = model_output
-    # mask[model_output >= 0.65] = 1.0
-    # mask[model_output < 0.65] = 0.0
+    model_output[model_output >= 0.8] = 1.0
+    model_output[model_output < 0.8] = 0.0
     model_output = model_output * mask
-    model_output = apply_k_means(denoise_image(img), model_output)
+
+    if b_apply_k_means:
+        model_output = apply_k_means(denoise_image(img), model_output)
+
     model_output = np.array(model_output * 255, dtype=np.uint8)
     display_model_output = np.array(model_output, dtype=np.uint8)
     img = np.stack((model_input['scaled'],)*3, axis=-1)
-    # img = cv2.imread('./gt_output/Subject_01_10.png')
     display_model_output = cv2.applyColorMap(
         display_model_output, cv2.COLORMAP_JET)
     fin = cv2.addWeighted(display_model_output, 0.6, img, 0.4, 0)
@@ -81,9 +79,33 @@ def post_process(model_input, model_output):
 
 
 if __name__ == "__main__":
-    model = CystCNN('./models_v2/model_0031.hd5')
-    model_input = prepare_input(1, 35)
+    model = CystCNN('my_model.hd5')
+    subject_number = 1
+    slice_number = 32
+    model_input = prepare_input(subject_number, slice_number)
     model_output = model.predict(model_input['X'])
-    _, fin = post_process(model_input, model_output)
-    plt.imshow(fin)
+    _, slice_with_output = post_process(model_input, model_output)
+    images_with_titles = [
+        (slice_with_output, 'Retina with predicted cyst regions')]
+    try:
+        actual_cyst = cv2.imread(
+            f'gt_output/Subject_{subject_number:02}_{slice_number:02}.png', cv2.IMREAD_GRAYSCALE)
+        display_gt = cv2.applyColorMap(
+            actual_cyst, cv2.COLORMAP_JET)
+        img = np.stack((model_input['scaled'],)*3, axis=-1)
+        slice_with_gt = cv2.addWeighted(
+            display_gt, 0.6, img, 0.4, 0)
+        images_with_titles.append(
+            (slice_with_gt, 'Retina with ground truth'))
+    except:
+        print(
+            f'Could not find corresponding ground truth.\nSubject:{subject_number:02}\nSlice:{slice_number:02}')
+
+    fig = plt.figure()
+
+    for n, (image, title) in enumerate(images_with_titles):
+        a = fig.add_subplot(1,
+                            len(images_with_titles), n + 1)
+        plt.imshow(image)
+        a.set_title(title)
     plt.show()

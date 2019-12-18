@@ -55,13 +55,10 @@ class DataGenerator(keras.utils.Sequence):
 
     def __getitem__(self, index):
         'Generate one batch of data'
-        # Generate indexes of the batch
         indexes = self.indexes[index*self.batch_size:(index+1)*self.batch_size]
 
-        # Find list of IDs
         list_IDs_temp = [self.list_IDs[k] for k in indexes]
 
-        # Generate data
         X, y = self.__data_generation(list_IDs_temp)
 
         return X, y
@@ -73,9 +70,7 @@ class DataGenerator(keras.utils.Sequence):
             np.random.shuffle(self.indexes)
 
     def __data_generation(self, list_IDs_temp):
-        # X : (n_samples, *dim, n_channels)
         'Generates data containing batch_size samples'
-        # Initialization
         X_1 = np.empty((self.batch_size, 256, 250, 3, 9))
         X_2 = np.empty((self.batch_size, 256, 250, 9))
         y = np.empty((self.batch_size, 128, 125))
@@ -93,7 +88,6 @@ class DataGenerator(keras.utils.Sequence):
 
 class ModelSaver(Callback):
     def on_epoch_end(self, epoch, logs={}):
-        # or save after some epoch, each k-th epoch etc.
         if epoch == 1 or epoch % 1 == 0:
             self.model.save(f'./models_v2/model_{epoch:04}.hd5')
 
@@ -164,10 +158,6 @@ class CystCNN():
         return self.model.predict(X)
 
 
-# To train...
-# model.fit([input1, input2], Y,
-#           validation_data=([v_input_1, v_input_2], v_Y),
-#           batch_size=batch_size, epoch=epoch)
 if __name__ == "__main__":
     model = CystCNN()
     model.train(200, 30)
