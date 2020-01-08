@@ -39,11 +39,11 @@ def output_to_disk(info):
         pass
 
 
-def extract_data(path='./2015_BOE_Chiu', b_write_to_disk=False):
+def extract_data(path='./data', b_write_to_disk=False):
     info = []
     for i in range(1, 11):
         subject_info = []
-        mat = scipy.io.loadmat(f'2015_BOE_Chiu/Subject_{i:02}.mat')
+        mat = scipy.io.loadmat(f'{path}/Subject_{i:02}.mat')
         images = mat['images']
         grader1 = mat['manualFluid1']
         grader2 = mat['manualFluid1']
