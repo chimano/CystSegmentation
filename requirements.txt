@@ -31,7 +31,7 @@ numpy==1.17.4
 oauthlib==3.1.0
 opencv-python==4.1.2.30
 opt-einsum==3.1.0
-Pillow==6.2.1
+Pillow==8.3.2
 protobuf==3.10.0
 PyAbel==0.8.3
 pyasn1==0.4.8
